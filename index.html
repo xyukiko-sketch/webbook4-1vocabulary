@@ -22,6 +22,13 @@ select,button,label{font:inherit}
 .btn.primary{background:var(--primary);color:#fff} .btn.secondary{background:#e8eef8;color:#30445f}
 .btn.good{background:var(--good);color:#fff} .btn.bad{background:#fff0f0;color:var(--bad);border:1px solid #fecaca}
 .btn.remember{background:#7c3aed;color:#fff}
+.btn.training{background:#ea580c;color:#fff}
+.hint-card{margin:16px auto 0;max-width:700px;background:#fffaf0;border:1px solid #fed7aa;border-radius:16px;padding:16px;text-align:left}
+.hint-title{font-weight:900;color:#b45309;margin-bottom:8px}
+.hint-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.hint-label{font-size:12px;font-weight:900;color:#7c2d12;text-transform:uppercase}
+.hint-text{margin-top:3px;color:#3f3f46}
+.weak-badge{display:inline-block;background:#ffedd5;color:#9a3412;border-radius:999px;padding:4px 8px;font-size:12px;font-weight:900;margin-left:6px}
 .hidden{display:none!important}
 .word{text-align:center;font-size:clamp(34px,7vw,58px);font-weight:900;margin-top:12px}
 .ipa,.small,.counter{text-align:center;color:var(--muted)} .ipa{font-size:19px;margin:8px}
@@ -35,6 +42,10 @@ select,button,label{font:inherit}
 .option:hover{border-color:#8eade0} .option.correct{background:#dcfce7;border-color:#22c55e;color:#166534}
 .option.wrong{background:#fee2e2;border-color:#ef4444;color:#991b1b}
 .feedback{text-align:center;font-size:21px;font-weight:900;min-height:34px;margin-top:15px}
+.timer-wrap{margin:14px auto 2px;max-width:420px}
+.timer-label{text-align:center;font-weight:900;color:#b45309;margin-bottom:5px}
+.timer-track{height:12px;background:#fde7c7;border-radius:999px;overflow:hidden;border:1px solid #fed7aa}
+.timer-bar{height:100%;width:100%;background:linear-gradient(90deg,#22c55e,#f59e0b,#ef4444);transform-origin:left center}
 .progress{height:10px;background:#e3e9f2;border-radius:999px;overflow:hidden;margin:16px 0}
 .progress>div{height:100%;background:linear-gradient(90deg,#3b82f6,#8b5cf6);width:0;transition:.3s}
 .row{display:grid;grid-template-columns:1.1fr 1.7fr auto;gap:14px;align-items:center;border-bottom:1px solid var(--line);padding:14px 5px}
@@ -83,7 +94,9 @@ to{opacity:0;transform:translate(-50%,-50%) rotate(var(--r)) translateX(var(--x)
   </select>
   <label class="toggle"><input id="autoSpeak" type="checkbox" checked> 自動読み上げ</label>
   <label class="toggle"><input id="soundEffects" type="checkbox" checked> 効果音</label>
-  <button id="shuffleBtn" class="btn secondary">シャッフル</button>
+<label class="toggle"><input id="showHints" type="checkbox"> ヒント表示</label>
+  <button id="trainingBtn" class="btn training">🔥 苦手特訓</button>
+<button id="shuffleBtn" class="btn secondary">シャッフル</button>
   <button id="resetBtn" class="btn secondary">履歴をリセット</button>
 </div>
 
@@ -106,6 +119,7 @@ to{opacity:0;transform:translate(-50%,-50%) rotate(var(--r)) translateX(var(--x)
     <div id="flashExample" class="example"></div>
   </div>
   <div id="flashControls" class="controls" style="margin-top:20px"></div>
+<div id="flashHint" class="hint-card hidden"></div>
 </section>
 
 <section id="quizView" class="panel hidden">
@@ -114,9 +128,10 @@ to{opacity:0;transform:translate(-50%,-50%) rotate(var(--r)) translateX(var(--x)
   <div id="quizPrompt" class="word"></div>
   <div id="quizIpa" class="ipa"></div>
   <div class="controls"><button id="speakQuiz" class="btn speak">🔊 読み上げ</button></div>
-  <div id="options" class="options"></div>
+  <div id="quizTimer" class="timer-wrap"><div id="timerLabel" class="timer-label">残り 3.0 秒</div><div class="timer-track"><div id="timerBar" class="timer-bar"></div></div></div><div id="options" class="options"></div>
   <div id="feedback" class="feedback"></div>
-  <div class="controls"><button id="wrongNext" class="btn primary hidden">次の問題</button></div>
+<div id="quizHint" class="hint-card hidden"></div>
+  
 </section>
 
 <section id="listView" class="panel hidden">
@@ -126,6 +141,22 @@ to{opacity:0;transform:translate(-50%,-50%) rotate(var(--r)) translateX(var(--x)
 </div>
 
 <script>
+
+const hintData={
+  "explicitly":{
+    origin:"ex-（外へ）＋ plic（折りたたむ）→ 折りたたんだものを外へ広げる",
+    image:"折りたたんだ紙をパッと広げ、誰にでも見えるようにする",
+    memory:"explicitly = はっきりと、明示的に",
+    example:"The rule explicitly prohibits smoking."
+  },
+  "leverage":{
+    origin:"lever（てこ）から生まれた語",
+    image:"小さな力を、てこの力で大きな成果に変える",
+    memory:"leverage = 強みや資源を最大限に活用する",
+    example:"Schools can leverage technology to improve learning."
+  }
+};
+
 const words=[
 {w:'array',ipa:'/əˈreɪ/',pos:'n.',ja:'多様なもの、一連',ex:'an array of methods'},
 {w:'be poised to',ipa:'—',pos:'熟語',ja:'～する態勢が整っている',ex:'be poised to play a crucial role'},
@@ -177,11 +208,12 @@ function loadState(){
 }
 
 let state=loadState();
-let prefs=JSON.parse(localStorage.getItem(prefsKey)||'{"autoSpeak":true,"soundEffects":true}');
-let mode='flash',deck=[],index=0,answered=false,advanceTimer=null;
+let prefs=JSON.parse(localStorage.getItem(prefsKey)||'{"autoSpeak":true,"soundEffects":true,"showHints":false}');
+let mode='flash',deck=[],index=0,answered=false,advanceTimer=null,questionTimer=null,timerInterval=null,questionStartedAt=0,trainingMode=false;
 
 $('autoSpeak').checked=prefs.autoSpeak!==false;
 $('soundEffects').checked=prefs.soundEffects!==false;
+$('showHints').checked=prefs.showHints===true;
 
 function normalizeWordStats(w){
   const current=state.wordStats[w]||{};
@@ -201,10 +233,12 @@ function save(){
 function savePrefs(){
   prefs.autoSpeak=$('autoSpeak').checked;
   prefs.soundEffects=$('soundEffects').checked;
+  prefs.showHints=$('showHints').checked;
   localStorage.setItem(prefsKey,JSON.stringify(prefs));
 }
 $('autoSpeak').onchange=savePrefs;
 $('soundEffects').onchange=savePrefs;
+$('showHints').onchange=()=>{savePrefs();render()};
 
 function shuffle(a){
   const b=[...a];
@@ -218,7 +252,7 @@ function filteredWords(){
 function rebuildDeck(){
   clearTimeout(advanceTimer);
   advanceTimer=null;
-  deck=shuffle(filteredWords());
+  deck=weightedDeck(filteredWords());
   index=0;
   render();
 }
@@ -228,8 +262,57 @@ function statsHtml(w){
   const s=statsOf(w);
   return `<span class="stat-chip">挑戦 ${s.attempts}回</span>
           <span class="stat-chip">正解 ${s.correct}回</span>
-          <span class="stat-chip streak-chip">連続正解 ${s.streak} / 7</span>`;
+          <span class="stat-chip streak-chip">連続正解 ${s.streak} / 7</span>
+          ${isWeak(w)?'<span class="weak-badge">苦手</span>':''}`;
 }
+
+function errorsOf(w){
+  const s=statsOf(w);
+  return Math.max(0,s.attempts-s.correct);
+}
+function weakScore(w){
+  const s=statsOf(w);
+  const errors=errorsOf(w);
+  return errors*3 + Math.max(0,4-s.streak);
+}
+function isWeak(w){
+  const s=statsOf(w);
+  return errorsOf(w)>=2 || (s.attempts>=3 && s.correct/Math.max(1,s.attempts)<0.7);
+}
+function weightedDeck(list){
+  const weighted=[];
+  list.forEach(x=>{
+    const repeat=trainingMode ? Math.max(1,Math.min(5,1+errorsOf(x.w))) : (isWeak(x.w)?3:1);
+    for(let i=0;i<repeat;i++)weighted.push(x);
+  });
+  return shuffle(weighted);
+}
+function hintHtml(x){
+  const h=hintData[x.w]||{
+    origin:"この単語は本文の文脈とコロケーションで覚えましょう。",
+    image:`「${x.ja}」の場面を頭の中に描く`,
+    memory:`${x.w} = ${x.ja}`,
+    example:x.ex
+  };
+  return `<div class="hint-title">💡 覚え方ヒント</div>
+    <div class="hint-grid">
+      <div><div class="hint-label">語源</div><div class="hint-text">${h.origin}</div></div>
+      <div><div class="hint-label">イメージ</div><div class="hint-text">${h.image}</div></div>
+      <div><div class="hint-label">記憶フレーズ</div><div class="hint-text">${h.memory}</div></div>
+      <div><div class="hint-label">例文</div><div class="hint-text">${h.example}</div></div>
+    </div>`;
+}
+function showHintIfNeeded(targetId,x,force=false){
+  const target=$(targetId);
+  if(force || $('showHints').checked || isWeak(x.w)){
+    target.innerHTML=hintHtml(x);
+    target.classList.remove('hidden');
+  }else{
+    target.classList.add('hidden');
+    target.innerHTML='';
+  }
+}
+
 function updateStats(){
   $('masteredCount').textContent=words.filter(x=>state.mastered[x.w]).length;
   $('totalCount').textContent=words.length;
@@ -301,7 +384,71 @@ function streakAnimation(streak,mastered=false){
   setTimeout(()=>layer.innerHTML='',1200);
 }
 
+
+function stopQuestionTimer(){
+  clearTimeout(questionTimer);
+  clearInterval(timerInterval);
+  questionTimer=null;
+  timerInterval=null;
+}
+function startQuestionTimer(x){
+  stopQuestionTimer();
+  questionStartedAt=performance.now();
+  $('timerBar').style.transition='none';
+  $('timerBar').style.width='100%';
+  $('timerLabel').textContent='残り 3.0 秒';
+
+  requestAnimationFrame(()=>{
+    requestAnimationFrame(()=>{
+      $('timerBar').style.transition='width 3s linear';
+      $('timerBar').style.width='0%';
+    });
+  });
+
+  timerInterval=setInterval(()=>{
+    const left=Math.max(0,3000-(performance.now()-questionStartedAt));
+    $('timerLabel').textContent=`残り ${(left/1000).toFixed(1)} 秒`;
+  },50);
+
+  questionTimer=setTimeout(()=>handleTimeout(x),3000);
+}
+function handleTimeout(x){
+  if(answered||mode!=='quiz')return;
+  answered=true;
+  stopQuestionTimer();
+
+  state.total++;
+  const s=statsOf(x.w);
+  s.attempts++;
+  s.streak=0;
+
+  [...$('options').children].forEach(b=>{
+    b.disabled=true;
+    if(b.textContent===($('direction').value==='en-ja'?x.ja:x.w))b.classList.add('correct');
+  });
+
+  $('feedback').textContent=`時間切れです。正解：${$('direction').value==='en-ja'?x.ja:x.w}`;
+  $('feedback').style.color='var(--bad)';
+  $('quizWordStats').innerHTML=statsHtml(x.w);
+  showHintIfNeeded('quizHint',x,true);
+  $('timerLabel').textContent='時間切れ';
+  wrongSound();
+  save();
+
+  clearTimeout(advanceTimer);
+  advanceTimer=setTimeout(()=>{
+    advanceTimer=null;
+    if(mode!=='quiz')return;
+    const current=deck.splice(index%deck.length,1)[0];
+    const at=Math.min(deck.length,index+2);
+    deck.splice(at,0,current);
+    if(index>=deck.length)index=0;
+    renderQuiz();
+  },1300);
+}
+
 function render(){
+  stopQuestionTimer();
   clearTimeout(advanceTimer);
   advanceTimer=null;
   ['flashView','quizView','listView'].forEach(id=>$(id).classList.add('hidden'));
@@ -328,6 +475,7 @@ function renderFlash(){
   $('flashControls').innerHTML='<button id="showAnswer" class="btn primary">答えを見る</button>';
   $('showAnswer').onclick=()=>{
     $('flashAnswerArea').classList.remove('hidden');
+    showHintIfNeeded('flashHint',x,true);
     $('flashControls').innerHTML='<button id="again" class="btn bad">もう一度</button><button id="nextFlash" class="btn good">覚えていた</button>';
     $('again').onclick=()=>recordFlash(false,x);
     $('nextFlash').onclick=()=>recordFlash(true,x);
@@ -335,6 +483,7 @@ function renderFlash(){
   $('speakFlash').onclick=()=>speak(x);
   $('bar').style.width=((index+1)/deck.length*100)+'%';
   autoSpeak(x);
+  showHintIfNeeded('flashHint',x,false);
 }
 function recordFlash(ok,x){
   const s=statsOf(x.w);
@@ -354,11 +503,12 @@ function recordFlash(ok,x){
 }
 function renderQuiz(){
   const x=currentWord();
-  answered=false;$('feedback').textContent='';$('wrongNext').classList.add('hidden');
+  answered=false;$('feedback').textContent='';
   if(!x){
-    showEmpty($('quizPrompt'));$('quizIpa').textContent='';$('quizWordStats').innerHTML='';$('options').innerHTML='';return;
+    showEmpty($('quizPrompt'));$('quizIpa').textContent='';$('quizWordStats').innerHTML='';$('options').innerHTML='';$('quizTimer').classList.add('hidden');return;
   }
   const p=promptData(x);
+  $('quizTimer').classList.remove('hidden');
   $('quizCounter').textContent=`${index+1} / ${deck.length}`;
   $('quizWordStats').innerHTML=statsHtml(x.w);
   $('quizPrompt').textContent=p.prompt;$('quizIpa').textContent=p.ipa;
@@ -374,10 +524,13 @@ function renderQuiz(){
   $('speakQuiz').onclick=()=>speak(x);
   $('bar').style.width=((index+1)/deck.length*100)+'%';
   autoSpeak(x);
+  showHintIfNeeded('quizHint',x,false);
+  startQuestionTimer(x);
 }
 function answerQuiz(btn,ok,x){
   if(answered)return;
   answered=true;
+  stopQuestionTimer();
   state.total++;
   const s=statsOf(x.w);
   s.attempts++;
@@ -408,33 +561,37 @@ function answerQuiz(btn,ok,x){
   }else{
     s.streak=0;
     btn.classList.add('wrong');
-    $('feedback').textContent=`正解：${$('direction').value==='en-ja'?x.ja:x.w}`;
+    $('feedback').textContent=`不正解です。正解：${$('direction').value==='en-ja'?x.ja:x.w}`;
     $('feedback').style.color='var(--bad)';
     $('quizWordStats').innerHTML=statsHtml(x.w);
+    showHintIfNeeded('quizHint',x,true);
     wrongSound();
     [...$('options').children].forEach(b=>{
       if(b.textContent===($('direction').value==='en-ja'?x.ja:x.w))b.classList.add('correct');
     });
     save();
-    $('wrongNext').classList.remove('hidden');
-    $('wrongNext').onclick=()=>{
+
+    clearTimeout(advanceTimer);
+    advanceTimer=setTimeout(()=>{
+      advanceTimer=null;
+      if(mode!=='quiz')return;
       const current=deck.splice(index%deck.length,1)[0];
       const at=Math.min(deck.length,index+2);
       deck.splice(at,0,current);
       if(index>=deck.length)index=0;
       renderQuiz();
-    };
+    },1300);
   }
 }
 function renderList(){
   clearTimeout(advanceTimer);advanceTimer=null;
-  const list=filteredWords().sort((a,b)=>a.w.localeCompare(b.w));
+  const list=filteredWords().sort((a,b)=>trainingMode?weakScore(b.w)-weakScore(a.w):a.w.localeCompare(b.w));
   $('wordList').innerHTML=list.map(x=>{
     const s=statsOf(x.w);
     return `<div class="row">
       <div><b>${x.w}</b><div class="small">${x.ipa}　${x.pos}</div></div>
       <div>${x.ja}<div class="small">${x.ex}</div>
-        <div class="small" style="margin-top:5px">挑戦 ${s.attempts}回｜正解 ${s.correct}回｜連続 ${s.streak}/7</div>
+        <div class="small" style="margin-top:5px">挑戦 ${s.attempts}回｜正解 ${s.correct}回｜連続 ${s.streak}/7 ${isWeak(x.w)?'<span class="weak-badge">苦手</span>':''}</div>
       </div>
       <div>
         <span class="badge ${state.mastered[x.w]?'mastered':''}">${state.mastered[x.w]?'覚えた':'練習中'}</span>
@@ -465,6 +622,12 @@ document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
 });
 $('direction').onchange=rebuildDeck;
 $('filter').onchange=rebuildDeck;
+$('trainingBtn').onclick=()=>{
+  trainingMode=!trainingMode;
+  $('trainingBtn').textContent=trainingMode?'🔥 特訓中':'🔥 苦手特訓';
+  $('trainingBtn').style.opacity=trainingMode?'1':'.9';
+  rebuildDeck();
+};
 $('shuffleBtn').onclick=rebuildDeck;
 $('resetBtn').onclick=()=>{
   if(confirm('学習履歴をすべて消しますか？')){
