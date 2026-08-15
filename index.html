@@ -67,20 +67,29 @@ select,button,label{font:inherit}
   animation:starBurst 1s ease-out forwards}
 @keyframes starBurst{from{opacity:1;transform:translate(-50%,-50%) rotate(0) translateX(0) scale(.5)}
 to{opacity:0;transform:translate(-50%,-50%) rotate(var(--r)) translateX(var(--x)) scale(1.35)}}
-@media(max-width:650px){.options{grid-template-columns:1fr}.row{grid-template-columns:1fr}}
+.dashboard{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:14px 0}.dash-card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px;text-align:center}.dash-card b{display:block;font-size:26px}.goal-box{background:linear-gradient(135deg,#eff6ff,#f5f3ff);border:1px solid #c7d2fe;border-radius:18px;padding:16px;margin:14px 0}.goal-title{text-align:center;font-weight:900;font-size:19px}.complete{text-align:center;padding:34px}
+.result-score{font-size:clamp(28px,6vw,46px);font-weight:1000;margin:12px 0 6px}
+.result-rate{font-size:clamp(22px,5vw,34px);font-weight:900;margin:4px 0 12px}
+.result-message{font-size:18px;font-weight:800;color:#465a75;margin:10px 0 18px}
+.result-pop{animation:resultPop .9s cubic-bezier(.18,.89,.32,1.28)}
+@keyframes resultPop{0%{opacity:0;transform:scale(.55)}55%{opacity:1;transform:scale(1.08)}100%{transform:scale(1)}}
+.result-star{position:fixed;z-index:125;pointer-events:none;font-size:30px;animation:resultStar 1.4s ease-out forwards}
+@keyframes resultStar{0%{opacity:0;transform:translate(-50%,-50%) scale(.3)}25%{opacity:1}100%{opacity:0;transform:translate(var(--dx),var(--dy)) rotate(540deg) scale(1.25)}}.complete .trophy{font-size:72px}.complete h2{font-size:34px;margin:8px 0}.btn.boss{background:#7c2d12;color:#fff}@media(max-width:650px){.options{grid-template-columns:1fr}.row{grid-template-columns:1fr}.dashboard{grid-template-columns:1fr 1fr}}
 </style>
 </head>
 <body>
 <div id="celebration" class="celebration"></div>
 <div id="streakLayer"></div>
 <div class="app">
-<header><h1>Web Book 4-1 Vocabulary</h1><div class="sub">読み上げ・4択・7回連続正解で自動習得</div></header>
+<header><h1>Web Book 4-1 Vocabulary</h1><div class="sub">読み上げ・4択・5回連続正解で習得・翌日から間隔復習</div></header>
 
-<div class="stats">
-  <span>覚えた：<b id="masteredCount">0</b></span>
-  <span>全単語：<b id="totalCount">0</b></span>
-  <span>正答率：<b id="accuracy">–</b></span>
+<div class="dashboard">
+  <div class="dash-card">今日の問題<b id="todayCount">0/50</b></div>
+  <div class="dash-card">覚えた単語<b id="masteredCount">0</b></div>
+  <div class="dash-card">復習待ち<b id="dueCount">0</b></div>
+  <div class="dash-card">正答率<b id="accuracy">–</b></div>
 </div>
+<div class="goal-box"><div class="goal-title" id="goalTitle">今日の目標：50問</div><div class="progress"><div id="dailyBar"></div></div><div class="small" id="goalNote">50問終了後に今日の正解数と正答率を表示します。</div></div>
 
 <div class="settings">
   <select id="direction" class="select">
@@ -88,14 +97,14 @@ to{opacity:0;transform:translate(-50%,-50%) rotate(var(--r)) translateX(var(--x)
     <option value="ja-en">日本語 → 英語</option>
   </select>
   <select id="filter" class="select">
-    <option value="review">覚えていない単語だけ</option>
+    <option value="due">今日の復習</option><option value="review">覚えていない単語だけ</option>
     <option value="all">すべての単語</option>
     <option value="mastered">覚えた単語だけ</option>
   </select>
   <label class="toggle"><input id="autoSpeak" type="checkbox" checked> 自動読み上げ</label>
   <label class="toggle"><input id="soundEffects" type="checkbox" checked> 効果音</label>
 <label class="toggle"><input id="showHints" type="checkbox"> ヒント表示</label>
-  <button id="trainingBtn" class="btn training">🔥 苦手特訓</button>
+  <button id="trainingBtn" class="btn training">🔥 苦手特訓</button><button id="bossBtn" class="btn boss">👑 ボス戦</button>
 <button id="shuffleBtn" class="btn secondary">シャッフル</button>
   <button id="resetBtn" class="btn secondary">履歴をリセット</button>
 </div>
@@ -128,16 +137,17 @@ to{opacity:0;transform:translate(-50%,-50%) rotate(var(--r)) translateX(var(--x)
   <div id="quizPrompt" class="word"></div>
   <div id="quizIpa" class="ipa"></div>
   <div class="controls"><button id="speakQuiz" class="btn speak">🔊 読み上げ</button></div>
-  <div id="quizTimer" class="timer-wrap"><div id="timerLabel" class="timer-label">残り 3.0 秒</div><div class="timer-track"><div id="timerBar" class="timer-bar"></div></div></div><div id="options" class="options"></div>
+  <div id="quizTimer" class="timer-wrap"><div id="timerLabel" class="timer-label">残り 4.0 秒</div><div class="timer-track"><div id="timerBar" class="timer-bar"></div></div></div><div id="options" class="options"></div>
   <div id="feedback" class="feedback"></div>
 <div id="quizHint" class="hint-card hidden"></div>
   
 </section>
 
 <section id="listView" class="panel hidden">
-  <div class="small" style="margin-bottom:12px">「覚えた」を押すと手動で除外できます。7回連続正解した単語も自動的に除外されます。</div>
+  <div class="small" style="margin-bottom:12px">「覚えた」を押すと手動で除外できます。5回連続正解した単語は通常学習から除外され、翌日0時から「今日の復習」に再登場します。</div>
   <div id="wordList"></div>
 </section>
+<section id="completeView" class="panel hidden complete"><div id="resultIcon" class="trophy">🏆</div><h2 id="resultTitle">今日の学習完了！</h2><div id="resultScore" class="result-score"></div><div id="resultRate" class="result-rate"></div><div id="resultMessage" class="result-message"></div><button id="continueBtn" class="btn primary">追加で練習する</button></section>
 </div>
 
 <script>
@@ -187,8 +197,8 @@ const words=[
 {w:'transformation',ipa:'/ˌtrænsfərˈmeɪʃn/',pos:'n.',ja:'変化、変革',ex:'ongoing transformations'},
 {w:'undergo',ipa:'/ˌʌndərˈɡoʊ/',pos:'v.',ja:'経験する',ex:'undergo changes'}];
 const $=id=>document.getElementById(id);
-const storageKey='wb41_vocab_progress_v5';
-const previousKeys=['wb41_vocab_progress_v4','wb41_vocab_progress_v2','wb41_vocab_progress_v1'];
+const storageKey='wb41_vocab_progress_v7';
+const previousKeys=['wb41_vocab_progress_v5','wb41_vocab_progress_v4','wb41_vocab_progress_v2','wb41_vocab_progress_v1'];
 const prefsKey='wb41_vocab_audio_v1';
 
 function loadState(){
@@ -199,17 +209,21 @@ function loadState(){
       if(old){s=old;break}
     }
   }
-  if(!s)s={mastered:{},correct:0,total:0,wordStats:{}};
+  if(!s)s={mastered:{},correct:0,total:0,wordStats:{},daily:{date:'',count:0,correct:0,bossDone:false,finished:false}};
   if(!s.mastered)s.mastered={};
   if(!s.wordStats)s.wordStats={};
+  if(!s.daily)s.daily={date:'',count:0,correct:0,bossDone:false,finished:false};
   if(typeof s.correct!=='number')s.correct=0;
   if(typeof s.total!=='number')s.total=0;
+  if(typeof s.daily.correct!=='number')s.daily.correct=0;
+  if(typeof s.daily.finished!=='boolean')s.daily.finished=false;
   return s;
 }
 
 let state=loadState();
 let prefs=JSON.parse(localStorage.getItem(prefsKey)||'{"autoSpeak":true,"soundEffects":true,"showHints":false}');
-let mode='flash',deck=[],index=0,answered=false,advanceTimer=null,questionTimer=null,timerInterval=null,questionStartedAt=0,trainingMode=false;
+let mode='flash',deck=[],index=0,answered=false,advanceTimer=null,questionTimer=null,timerInterval=null,questionStartedAt=0,trainingMode=false,bossMode=false;
+const DAILY_GOAL=50,BOSS_COUNT=5,DAY=86400000;
 
 $('autoSpeak').checked=prefs.autoSpeak!==false;
 $('soundEffects').checked=prefs.soundEffects!==false;
@@ -220,7 +234,10 @@ function normalizeWordStats(w){
   state.wordStats[w]={
     attempts:Number(current.attempts)||0,
     correct:Number(current.correct)||0,
-    streak:Number(current.streak)||0
+    streak:Number(current.streak)||0,
+    level:Number(current.level)||0,
+    due:Number(current.due)||Date.now(),
+    errors:Number(current.errors)||0
   };
   return state.wordStats[w];
 }
@@ -240,6 +257,103 @@ $('autoSpeak').onchange=savePrefs;
 $('soundEffects').onchange=savePrefs;
 $('showHints').onchange=()=>{savePrefs();render()};
 
+
+function todayKey(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
+function nextLocalDayStart(){
+  const d=new Date();
+  d.setHours(24,0,0,0);
+  return d.getTime();
+}
+function ensureDaily(){if(state.daily.date!==todayKey())state.daily={date:todayKey(),count:0,correct:0,bossDone:false,finished:false}}
+ensureDaily();
+function levelDelay(level){return [0,0,DAY,3*DAY,7*DAY,14*DAY,30*DAY][Math.min(6,level)]}
+function scheduleCorrect(x){const s=statsOf(x.w);s.level=s.streak>=5?Math.max(s.level,5):s.streak>=3?Math.max(s.level,3):s.streak>=2?Math.max(s.level,2):Math.max(s.level,1);s.due=Date.now()+levelDelay(s.level)}
+function scheduleWrong(x){const s=statsOf(x.w);s.errors++;s.level=Math.max(0,s.level-2);s.due=Date.now()}
+function isDue(x){return statsOf(x.w).due<=Date.now()}
+function recordDaily(ok=false){
+  if(bossMode||state.daily.finished)return;
+  if(state.daily.count<DAILY_GOAL){
+    state.daily.count++;
+    if(ok)state.daily.correct++;
+  }
+}
+function bossWords(){return words.filter(x=>!state.mastered[x.w]).sort((a,b)=>weakScore(b.w)-weakScore(a.w)).slice(0,BOSS_COUNT)}
+function startBoss(){bossMode=true;deck=shuffle(bossWords());index=0;mode='quiz';document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.mode==='quiz'));render()}
+function maybeFinishDaily(){
+  if(!bossMode && !state.daily.finished && state.daily.count>=DAILY_GOAL){
+    state.daily.finished=true;
+    showComplete();
+    return true;
+  }
+  return false;
+}
+function resultSound(rate){
+  if(!$('soundEffects').checked)return;
+
+  // 50問完了用の派手なファンファーレ
+  if(rate>=90){
+    // 高得点：上昇アルペジオ → 高音の祝砲 → 締めの和音
+    [
+      [523,0,.14],[659,.08,.14],[784,.16,.14],[1047,.24,.18],
+      [1319,.36,.20],[1568,.48,.22],[2093,.62,.34],
+      [1047,.82,.20],[1319,.82,.20],[1568,.82,.20],
+      [1319,1.06,.18],[1568,1.06,.18],[2093,1.06,.38]
+    ].forEach(x=>tone(...x,.15));
+  }else if(rate>=70){
+    // 標準達成：明るいファンファーレ
+    [
+      [523,0,.14],[659,.10,.14],[784,.20,.18],
+      [1047,.34,.24],[784,.56,.14],[1047,.68,.18],
+      [1319,.82,.34],[659,1.02,.22],[988,1.02,.22],[1319,1.02,.30]
+    ].forEach(x=>tone(...x,.13));
+  }else{
+    // 50問完走：励ましつつ達成感のあるジングル
+    [
+      [392,0,.16],[494,.14,.16],[523,.28,.18],
+      [659,.46,.22],[523,.68,.16],[659,.80,.18],
+      [784,.94,.34]
+    ].forEach(x=>tone(...x,.11));
+  }
+}
+function resultAnimation(rate){
+  const layer=$('streakLayer');
+  layer.innerHTML='';
+  const count=rate>=90?24:rate>=70?14:8;
+  const symbols=rate>=90?['🌟','✨','🎉']:rate>=70?['⭐','✨']:['✨','💫'];
+  for(let i=0;i<count;i++){
+    const s=document.createElement('div');
+    s.className='result-star';
+    s.textContent=symbols[i%symbols.length];
+    s.style.left=(20+Math.random()*60)+'vw';
+    s.style.top=(25+Math.random()*45)+'vh';
+    s.style.setProperty('--dx',(Math.random()*360-180)+'px');
+    s.style.setProperty('--dy',(Math.random()*320-160)+'px');
+    s.style.animationDelay=(Math.random()*.25)+'s';
+    layer.appendChild(s);
+  }
+  if(rate>=90)celebrate();
+  setTimeout(()=>layer.innerHTML='',1800);
+}
+function showComplete(){
+  stopQuestionTimer();
+  ['flashView','quizView','listView'].forEach(id=>$(id).classList.add('hidden'));
+  $('completeView').classList.remove('hidden');
+  const correct=state.daily.correct;
+  const total=state.daily.count;
+  const rate=total?Math.round(correct/total*100):0;
+  $('resultScore').textContent=`${total}問中 ${correct}問正解`;
+  $('resultRate').textContent=`正答率 ${rate}%`;
+  $('resultIcon').textContent=rate>=90?'🏆':rate>=70?'🌟':'📘';
+  $('resultTitle').textContent=rate>=90?'すばらしい結果です！':rate>=70?'今日の目標達成！':'50問、お疲れさまでした！';
+  $('resultMessage').textContent=rate>=90?'高い正答率です。この調子で定着させましょう。':rate>=70?'よくできました。間違えた単語を復習するとさらに安定します。':'間違えた単語を中心に、もう一度確認してみましょう。';
+  $('completeView').classList.remove('result-pop');
+  void $('completeView').offsetWidth;
+  $('completeView').classList.add('result-pop');
+  resultAnimation(rate);
+  resultSound(rate);
+  save();
+}
+
 function shuffle(a){
   const b=[...a];
   for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[b[i],b[j]]=[b[j],b[i]]}
@@ -247,7 +361,25 @@ function shuffle(a){
 }
 function filteredWords(){
   const f=$('filter').value;
-  return words.filter(x=>f==='all'||(f==='review'&&!state.mastered[x.w])||(f==='mastered'&&state.mastered[x.w]));
+  if(bossMode)return bossWords();
+
+  if(mode==='list'){
+    return words.filter(x =>
+      f==='all' ||
+      (f==='due'&&isDue(x)) ||
+      (f==='review'&&!state.mastered[x.w]) ||
+      (f==='mastered'&&state.mastered[x.w])
+    );
+  }
+
+  // 「今日の復習」だけは、習得済みでも復習日が来た単語を出題する。
+  if(f==='due')return words.filter(isDue);
+
+  // 「覚えた単語だけ」は一覧確認専用。
+  if(f==='mastered')return [];
+
+  // 通常学習では習得済み単語を出題しない。
+  return words.filter(x=>!state.mastered[x.w]);
 }
 function rebuildDeck(){
   clearTimeout(advanceTimer);
@@ -256,13 +388,18 @@ function rebuildDeck(){
   index=0;
   render();
 }
+function removeMasteredFromDeck(w){
+  deck=deck.filter(x=>x.w!==w);
+  if(deck.length===0){index=0;return;}
+  index=index%deck.length;
+}
 function currentWord(){return deck.length?deck[index%deck.length]:null}
 function statsOf(w){return normalizeWordStats(w)}
 function statsHtml(w){
   const s=statsOf(w);
   return `<span class="stat-chip">挑戦 ${s.attempts}回</span>
           <span class="stat-chip">正解 ${s.correct}回</span>
-          <span class="stat-chip streak-chip">連続正解 ${s.streak} / 7</span>
+          <span class="stat-chip streak-chip">連続正解 ${s.streak} / 5</span><span class="stat-chip">Lv.${s.level}</span>
           ${isWeak(w)?'<span class="weak-badge">苦手</span>':''}`;
 }
 
@@ -314,8 +451,13 @@ function showHintIfNeeded(targetId,x,force=false){
 }
 
 function updateStats(){
+  ensureDaily();
   $('masteredCount').textContent=words.filter(x=>state.mastered[x.w]).length;
-  $('totalCount').textContent=words.length;
+  $('dueCount').textContent=words.filter(isDue).length;
+  $('todayCount').textContent=`${state.daily.count}/${DAILY_GOAL}`;
+  $('dailyBar').style.width=Math.min(100,state.daily.count/DAILY_GOAL*100)+'%';
+  $('goalTitle').textContent=bossMode?'👑 Boss Challenge：苦手5語':state.daily.finished?'今日の50問を完了しました':`今日の目標：${DAILY_GOAL}問`;
+  $('goalNote').textContent=bossMode?'苦手な5語に集中して挑戦します。':'50問終了後に今日の正解数と正答率を表示します。';
   $('accuracy').textContent=state.total?Math.round(state.correct/state.total*100)+'%':'–';
 }
 function promptData(x){
@@ -369,7 +511,7 @@ function streakAnimation(streak,mastered=false){
   layer.innerHTML='';
   const pop=document.createElement('div');
   pop.className='streak-pop';
-  pop.textContent=mastered?'🎉 7連続正解！習得！':streak>=2?`⭐ ${streak}連続正解！`:'✨ 正解！';
+  pop.textContent=mastered?'🎉 5連続正解！習得！':streak>=2?`⭐ ${streak}連続正解！`:'✨ 正解！';
   layer.appendChild(pop);
   const count=mastered?18:Math.min(12,4+streak);
   for(let i=0;i<count;i++){
@@ -396,21 +538,21 @@ function startQuestionTimer(x){
   questionStartedAt=performance.now();
   $('timerBar').style.transition='none';
   $('timerBar').style.width='100%';
-  $('timerLabel').textContent='残り 3.0 秒';
+  $('timerLabel').textContent='残り 4.0 秒';
 
   requestAnimationFrame(()=>{
     requestAnimationFrame(()=>{
-      $('timerBar').style.transition='width 3s linear';
+      $('timerBar').style.transition='width 4s linear';
       $('timerBar').style.width='0%';
     });
   });
 
   timerInterval=setInterval(()=>{
-    const left=Math.max(0,3000-(performance.now()-questionStartedAt));
+    const left=Math.max(0,4000-(performance.now()-questionStartedAt));
     $('timerLabel').textContent=`残り ${(left/1000).toFixed(1)} 秒`;
   },50);
 
-  questionTimer=setTimeout(()=>handleTimeout(x),3000);
+  questionTimer=setTimeout(()=>handleTimeout(x),4000);
 }
 function handleTimeout(x){
   if(answered||mode!=='quiz')return;
@@ -421,6 +563,7 @@ function handleTimeout(x){
   const s=statsOf(x.w);
   s.attempts++;
   s.streak=0;
+  scheduleWrong(x);
 
   [...$('options').children].forEach(b=>{
     b.disabled=true;
@@ -433,6 +576,7 @@ function handleTimeout(x){
   showHintIfNeeded('quizHint',x,true);
   $('timerLabel').textContent='時間切れ';
   wrongSound();
+  recordDaily(false);
   save();
 
   clearTimeout(advanceTimer);
@@ -443,6 +587,16 @@ function handleTimeout(x){
     const at=Math.min(deck.length,index+2);
     deck.splice(at,0,current);
     if(index>=deck.length)index=0;
+    if(bossMode&&index+1>=deck.length){
+        state.daily.bossDone=true;
+        bossMode=false;
+        save();
+        alert('ボス戦終了！ 苦手5語の練習が終わりました。');
+        mode='quiz';
+        rebuildDeck();
+        return;
+      }
+    if(maybeFinishDaily())return;
     renderQuiz();
   },1300);
 }
@@ -451,6 +605,7 @@ function render(){
   stopQuestionTimer();
   clearTimeout(advanceTimer);
   advanceTimer=null;
+  $('completeView').classList.add('hidden');
   ['flashView','quizView','listView'].forEach(id=>$(id).classList.add('hidden'));
   $(mode+'View').classList.remove('hidden');
   if(mode==='flash')renderFlash();
@@ -458,7 +613,7 @@ function render(){
   if(mode==='list')renderList();
 }
 function showEmpty(target){
-  target.textContent=$('filter').value==='review'?'覚えていない単語はありません。':'該当する単語がありません。';
+  target.textContent=$('filter').value==='review'?'覚えていない単語はありません。':$('filter').value==='mastered'?'覚えた単語は「単語一覧」で確認できます。習得済みの単語はフラッシュカード・4択クイズには再出題されません。':'該当する単語がありません。';
   $('bar').style.width='100%';
 }
 function renderFlash(){
@@ -489,17 +644,37 @@ function recordFlash(ok,x){
   const s=statsOf(x.w);
   s.attempts++;
   if(ok){
+    const wasMastered=!!state.mastered[x.w];
     s.correct++;s.streak++;
-    const mastered=s.streak>=7;
-    if(mastered)state.mastered[x.w]=true;
+    if(wasMastered && $('filter').value==='due'){
+      s.level=Math.min(6,Math.max(3,s.level+1));
+      s.due=Date.now()+levelDelay(s.level);
+    }else{
+      scheduleCorrect(x);
+    }
+    const mastered=wasMastered || s.streak>=5;
+    if(mastered){
+      const firstMastery=!state.mastered[x.w];
+      state.mastered[x.w]=true;
+      if(firstMastery){
+        s.level=1;
+        s.due=nextLocalDayStart();
+      }
+    }
     streakAnimation(s.streak,mastered);
     if(mastered){masteredSound();celebrate()}else correctSound();
   }else{
     s.streak=0;wrongSound();
   }
   save();
-  if(state.mastered[x.w]&&$('filter').value==='review')rebuildDeck();
-  else{index=(index+1)%deck.length;renderFlash()}
+  if(state.mastered[x.w]){
+    removeMasteredFromDeck(x.w);
+    if(deck.length===0){rebuildDeck();return;}
+    renderFlash();
+  }else{
+    index=(index+1)%deck.length;
+    renderFlash();
+  }
 }
 function renderQuiz(){
   const x=currentWord();
@@ -540,32 +715,59 @@ function answerQuiz(btn,ok,x){
     state.correct++;
     s.correct++;
     s.streak++;
-    const mastered=s.streak>=7;
-    if(mastered)state.mastered[x.w]=true;
+    scheduleCorrect(x);
+    const mastered=s.streak>=5;
+    if(mastered){
+      const firstMastery=!state.mastered[x.w];
+      state.mastered[x.w]=true;
+      if(firstMastery){
+        s.level=1;
+        s.due=nextLocalDayStart();
+      }
+    }
 
     btn.classList.add('correct');
-    $('feedback').textContent=mastered?'7回連続正解！覚えた単語として除外しました！':`正解です！ ${s.streak}連続正解`;
+    $('feedback').textContent=mastered?'5回連続正解！覚えた単語として除外しました！':`正解です！ ${s.streak}連続正解`;
     $('feedback').style.color='var(--good)';
     $('quizWordStats').innerHTML=statsHtml(x.w);
     streakAnimation(s.streak,mastered);
     if(mastered){masteredSound();celebrate()}else correctSound();
+    recordDaily(true);
     save();
 
     clearTimeout(advanceTimer);
     advanceTimer=setTimeout(()=>{
       advanceTimer=null;
       if(mode!=='quiz')return;
-      if(mastered&&$('filter').value==='review')rebuildDeck();
-      else{index=(index+1)%deck.length;renderQuiz()}
+      if(bossMode&&index+1>=deck.length){
+        state.daily.bossDone=true;
+        bossMode=false;
+        save();
+        alert('ボス戦終了！ 苦手5語の練習が終わりました。');
+        mode='quiz';
+        rebuildDeck();
+        return;
+      }
+      if(maybeFinishDaily())return;
+      if(mastered){
+        removeMasteredFromDeck(x.w);
+        if(deck.length===0){rebuildDeck();return;}
+        renderQuiz();
+      }else{
+        index=(index+1)%deck.length;
+        renderQuiz();
+      }
     },mastered?1450:950);
   }else{
     s.streak=0;
+    scheduleWrong(x);
     btn.classList.add('wrong');
     $('feedback').textContent=`不正解です。正解：${$('direction').value==='en-ja'?x.ja:x.w}`;
     $('feedback').style.color='var(--bad)';
     $('quizWordStats').innerHTML=statsHtml(x.w);
     showHintIfNeeded('quizHint',x,true);
     wrongSound();
+    recordDaily(false);
     [...$('options').children].forEach(b=>{
       if(b.textContent===($('direction').value==='en-ja'?x.ja:x.w))b.classList.add('correct');
     });
@@ -579,6 +781,16 @@ function answerQuiz(btn,ok,x){
       const at=Math.min(deck.length,index+2);
       deck.splice(at,0,current);
       if(index>=deck.length)index=0;
+      if(bossMode&&index+1>=deck.length){
+        state.daily.bossDone=true;
+        bossMode=false;
+        save();
+        alert('ボス戦終了！ 苦手5語の練習が終わりました。');
+        mode='quiz';
+        rebuildDeck();
+        return;
+      }
+      if(maybeFinishDaily())return;
       renderQuiz();
     },1300);
   }
@@ -591,7 +803,7 @@ function renderList(){
     return `<div class="row">
       <div><b>${x.w}</b><div class="small">${x.ipa}　${x.pos}</div></div>
       <div>${x.ja}<div class="small">${x.ex}</div>
-        <div class="small" style="margin-top:5px">挑戦 ${s.attempts}回｜正解 ${s.correct}回｜連続 ${s.streak}/7 ${isWeak(x.w)?'<span class="weak-badge">苦手</span>':''}</div>
+        <div class="small" style="margin-top:5px">Lv.${s.level}｜挑戦 ${s.attempts}回｜正解 ${s.correct}回｜連続 ${s.streak}/5｜次回 ${new Date(s.due).toLocaleDateString()} ${isWeak(x.w)?'<span class="weak-badge">苦手</span>':''}</div>
       </div>
       <div>
         <span class="badge ${state.mastered[x.w]?'mastered':''}">${state.mastered[x.w]?'覚えた':'練習中'}</span>
@@ -622,6 +834,8 @@ document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
 });
 $('direction').onchange=rebuildDeck;
 $('filter').onchange=rebuildDeck;
+$('bossBtn').onclick=startBoss;
+$('continueBtn').onclick=()=>{state.daily.count=0;state.daily.correct=0;state.daily.finished=false;state.daily.bossDone=false;bossMode=false;mode='quiz';save();rebuildDeck()};
 $('trainingBtn').onclick=()=>{
   trainingMode=!trainingMode;
   $('trainingBtn').textContent=trainingMode?'🔥 特訓中':'🔥 苦手特訓';
@@ -631,7 +845,7 @@ $('trainingBtn').onclick=()=>{
 $('shuffleBtn').onclick=rebuildDeck;
 $('resetBtn').onclick=()=>{
   if(confirm('学習履歴をすべて消しますか？')){
-    state={mastered:{},correct:0,total:0,wordStats:{}};
+    state={mastered:{},correct:0,total:0,wordStats:{},daily:{date:todayKey(),count:0,correct:0,bossDone:false,finished:false}};
     words.forEach(x=>normalizeWordStats(x.w));
     save();rebuildDeck();
   }
